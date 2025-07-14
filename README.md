@@ -39,4 +39,4 @@ This repository is licensed under the MIT License. See the [LICENSE](./LICENSE) 
 
 ---
 
-**Happy automate!**
+**Happy automating!**
