@@ -1,4 +1,4 @@
-# Ngulik-DevSecOps
+# DevSecOps-Labs
 Welcome to my DevSecOps portfolio repository! 🚀
 
 This repository contains a collection of my automation scripts, templates, and documentation that demonstrate my experience in DevOps, security, and automation.
