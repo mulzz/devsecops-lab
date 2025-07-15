@@ -1,0 +1,220 @@
+{
+  "name": "Workflow Domain Expiry Notification to Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -360,
+        140
+      ],
+      "id": "dc0d7dfa-c889-4f82-ad08-82f9e5c987df",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        180,
+        120
+      ],
+      "id": "eb54b094-390b-4361-a93f-c6a637eea894",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9ad35ed2-0f5d-47b8-8dac-73de931c74dc",
+              "leftValue": "={{ $json.days_left }}",
+              "rightValue": 30,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        120
+      ],
+      "id": "9ea789c1-aa31-4d02-9b0a-857473df5ca8",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "chatId": "-YourTelegramChatID",
+        "text": "=⚠️ Domain {{$json.domain}} akan expire dalam {{$json.days_left}} hari!\nTanggal expire: {{$json.expiry}}\nRegistrar: {{$json.registrar}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        20
+      ],
+      "id": "6afb4813-b5df-4055-8659-c3e8aedf8552",
+      "name": "Telegram",
+      "webhookId": "77711d75-fd19-4eef-b802-be0e3db5a4e4",
+      "credentials": {
+        "telegramApi": {
+          "id": "bUU3cxuO1xPI4vDY",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { domain: \"domain.id\" } },\n  { json: { domain: \"google.com\" } },\n  { json: { domain: \"domain.com\" } }\n           \n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        140
+      ],
+      "id": "5f297107-9688-4fac-9f5b-abce26011254",
+      "name": "List Domain"
+    },
+    {
+      "parameters": {
+        "executeOnce": false,
+        "command": "=whois {{ $json.domain }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8211cb8c-3ba3-4eaa-bd07-3a13119624e4",
+      "name": "WHOIS"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const domain = $json.domain;\nconst stdout = $json.stdout;\n\n// -------- Parsing Expiry Date --------\nlet expiry = null;\nlet registrar = null;\nconst lines = stdout.split('\\n');\nconst expiryKeywords = [\n  \"Expiry Date\",\n  \"expiration date\",\n  \"Registry Expiry Date\",\n  \"paid-till\",\n  \"expire\",\n  \"Expiration Date\"\n];\nconst registrarKeywords = [\n  \"Registrar:\",\n  \"Sponsoring Registrar:\",\n  \"registrar:\"\n];\n\n// Cari expiry date\nfor (const line of lines) {\n  for (const keyword of expiryKeywords) {\n    if (line.toLowerCase().includes(keyword.toLowerCase())) {\n      const parts = line.split(':');\n      if (parts.length > 1) {\n        expiry = parts.slice(1).join(':').trim();\n        break;\n      }\n    }\n  }\n  if (expiry) break;\n}\n\n// Cari registrar\nfor (const line of lines) {\n  for (const keyword of registrarKeywords) {\n    if (line.toLowerCase().includes(keyword.toLowerCase())) {\n      const parts = line.split(':');\n      if (parts.length > 1) {\n        registrar = parts.slice(1).join(':').trim();\n        // Biasanya cuma mau ambil registrar pertama\n        break;\n      }\n    }\n  }\n  if (registrar) break;\n}\n\n// Normalisasi expiry date\nlet expiryDate = new Date(expiry?.replace(/Z$/i, '').replace(' ', 'T'));\nif (isNaN(expiryDate.getTime())) {\n  expiryDate = new Date(expiry);\n}\n\nconst now = new Date();\nconst diff = (expiryDate - now) / (1000*60*60*24);\n\nreturn {\n  domain,\n  expiry: expiryDate.toISOString().substring(0, 10),\n  days_left: Math.floor(diff),\n  registrar,\n  raw_expiry: expiry\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        120
+      ],
+      "id": "39188ada-4799-41ff-8645-3c9e74964da9",
+      "name": "Parsing"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Parsing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Domain": {
+      "main": [
+        [
+          {
+            "node": "WHOIS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "WHOIS": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsing": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "298c76ba-8767-4d06-b0d3-7f6ec6394d4a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aa302fd541119d5ec3e645480de8e19f01ef93751861d8e6cadddfa6171e5e5f"
+  },
+  "id": "xDAz19yUV9hR72hd",
+  "tags": []
+}
