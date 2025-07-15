@@ -1,0 +1,227 @@
+{
+  "name": "Workflow SSL Expiry Notification to Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -200,
+        0
+      ],
+      "id": "91eb7bbd-0b51-408c-8473-04253fc132c7",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const stdout = $json.stdout || \"\";\n// Ambil baris yang mulai dengan notAfter\nconst match = stdout.match(/notAfter=(.*GMT)/);\nif (match) {\n    const expiryString = match[1].trim(); // Hasil: \"Sep 20 08:35:32 2025 GMT\"\n    // Split dengan regex karena bisa ada spasi ganda\n    const parts = expiryString.split(/\\s+/); // <-- split by one atau lebih spasi\n\n    // Parse bulan ke angka\n    const monthMap = {\n        Jan: \"01\", Feb: \"02\", Mar: \"03\", Apr: \"04\", May: \"05\", Jun: \"06\",\n        Jul: \"07\", Aug: \"08\", Sep: \"09\", Oct: \"10\", Nov: \"11\", Dec: \"12\"\n    };\n    const month = monthMap[parts[0]];\n    const day = parts[1].padStart(2, '0');\n    const time = parts[2];\n    const year = parts[3];\n    // Buat format ISO tanggal\n    const isoExpiry = `${year}-${month}-${day}T${time}Z`;\n\n    const expiryDate = new Date(isoExpiry);\n    const now = new Date();\n    const diffTime = expiryDate - now;\n    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));\n\n    // Parsing issuer (opsional)\n    const issuerMatch = stdout.match(/issuer=(.*)/);\n    const issuer = issuerMatch ? issuerMatch[1].trim() : null;\n\n    return {\n        ...$json,\n        expiryString,\n        expiryDate: isoExpiry,\n        diffDays,\n        issuer\n    };\n}\n\nreturn {\n    ...$json,\n    diffDays: null,\n    error: \"Failed to parse expiryString\"\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        0
+      ],
+      "id": "33d6e5b3-5f3f-4b03-ac6a-3986a24d26e4",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "chatId": "-YourTelegramChatId",
+        "text": "=⚠️ *SSL Expiration Alert!*\n\n*Domain:* `{{ $('Split Out').item.json.domains || 'N/A'}}`\n*Expiration Date:* `{{$json.expiryString || 'Unknown'}}`\n*Issuer:* `{{$json.issuer || 'Unknown'}}`\n*Days Left:* *{{$json.diffDays || 'Unknown'}}* days\n\nPlease renew your SSL certificate as soon as possible to avoid downtime and security issues.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        -100
+      ],
+      "id": "e37c6a8d-1a10-4776-9d43-d1098e5fa275",
+      "name": "Telegram",
+      "webhookId": "e9028a5d-eab5-4812-a2f5-8b9862ecb2e1",
+      "credentials": {
+        "telegramApi": {
+          "id": "ZbrZCivYifRMu0MJ",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "executeOnce": "={{ false }}",
+        "command": "=echo | openssl s_client -servername {{$json[\"domains\"]}} -connect {{$json[\"domains\"]}}:443 2>/dev/null | openssl x509 -noout -enddate -issuer"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        420,
+        0
+      ],
+      "id": "00ada75d-d7c8-4c70-852b-7e0237fd6192",
+      "name": "Execute Command"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"domains\": [\n    \"domain.id\",\n    \"domain.com\",\n    \"google.com\"\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        20,
+        0
+      ],
+      "id": "4d637841-b651-470e-8513-c49b0cc67765",
+      "name": "List Domains"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "domains",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "882dd3e6-2177-40a8-bd58-51eb75fbbdde",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1f24bc6c-cc70-4981-a388-f2fa6ef8a94a",
+              "leftValue": "={{ $json.diffDays }}",
+              "rightValue": 7,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "18e98cbc-26d8-4302-98ae-ba7c392d56a8",
+              "leftValue": "={{ $json.diffDays }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        860,
+        0
+      ],
+      "id": "bad640fb-a750-4b95-a8a0-38bd3a644d89",
+      "name": "If"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Domains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Domains": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Execute Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "619c93c2-e499-4e5d-9373-18871f76f3f2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "aa302fd541119d5ec3e645480de8e19f01ef93751861d8e6cadddfa6171e5e5f"
+  },
+  "id": "4cNiD8b7LEVIFsK6",
+  "tags": []
+}
