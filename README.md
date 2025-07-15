@@ -33,10 +33,6 @@ Feel free to explore, use, or contribute to any part of this repository!
 I'm a DevSecOps enthusiast passionate about automation, security, and reliable infrastructure.  
 You can find more about me on my [GitHub profile](https://github.com/mulzz).
 
-## License
-
-This repository is licensed under the MIT License. See the [LICENSE](./LICENSE) file for more information.
-
 ---
 
 **Happy automating!**
